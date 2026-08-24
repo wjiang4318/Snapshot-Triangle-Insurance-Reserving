@@ -19,18 +19,18 @@ claim_sizes <- claim_size(frequency_vector = n_vector)
 # --- Apply built-in covariates: Legal Representation, Injury Severity, Age of Claimant ---
 covariates_obj <- SynthETIC::test_covariates_obj
 
-# FIX: the package's default severity->cost relativity table has severity 6 at
+# The package's default severity->cost relativity table has severity 6 at
 # 0.4 -- LOWER than severity 1's 0.6, and a sharp break from the otherwise clean
 # monotonic climb across levels 1-5 (0.6, 1.2, 2.5, 5.0, 8.0). Overridden here to
 # 13, continuing that same roughly-doubling trend, so severity 6 is genuinely
 # the most severe/costly level as the name implies. Verified this renormalizes
 # against the whole population (every other level's relativity effectively
 # rescales down by a uniform ~0.9017 factor to compensate) -- so this changes
-# every claim's simulated size, not just severity-6 claims'. See CLAUDE.md.
+# every claim's simulated size, not just severity-6 claims'.
 sev_relativity <- covariates_obj$relativity_sev
 sev6_row <- which(sev_relativity$factor_i == "Injury Severity" &
-                     sev_relativity$factor_j == "Injury Severity" &
-                     sev_relativity$level_ik == "6")
+                  sev_relativity$factor_j == "Injury Severity" &
+                  sev_relativity$level_ik == "6")
 covariates_obj$relativity_sev[sev6_row, "relativity"] <- 13
 
 claim_size_covariates <- claim_size_adj(covariates_obj, claim_sizes, random_seed = 20200131)
