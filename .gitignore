@@ -2,3 +2,4 @@ CLAUDE.md
 scrape_code/
 *.pdf
 .venv
+__pycache__/
