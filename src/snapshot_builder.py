@@ -2,13 +2,12 @@
 Snapshot Triangle Builder
 
 Converts the SynthETIC transaction dataset into a snapshot-date-triangle
-dataset for individual claim reserving, per the spec in CLAUDE.md (Phase 2)
-and the reference paper (Llaguno et al., "Reserving with Machine Learning:
+dataset for individual claim reserving and the reference paper 
+(Llaguno et al., "Reserving with Machine Learning:
 Applications for Loyalty Programs and Individual Insurance Claims", CAS
 E-Forum Summer 2017).
 
-build_snapshot_triangle(df) is core mechanism only (8 columns) -- matches
-notebooks/02_snapshot_triangle_build.ipynb exactly, no feature engineering,
+build_snapshot_triangle(df) is core mechanism only (8 columns) -- no feature engineering,
 just the claim/snapshot/age grid and the future_paid target. Feature
 engineering for modeling (Phase 3+) lives in feature_engineering.py instead,
 built on top of this module's output.
@@ -20,12 +19,12 @@ import pandas as pd
 
 CUTOFF = 40
 
-# Grid spacing (periods) between both snapshots AND observation ages -- the two
-# must match, or the triangle degenerates into a parallelogram and the paper's
-# cell-count formula N(N-1)/2 no longer holds (see CLAUDE.md). Default 1 = the
-# finest grid the data supports (payment_period is the atomic unit); pass
-# STEP=3 for a coarser, more classically "quarterly-report-cadence" triangle.
-STEP = 1
+# Only two grid spacings are created -- matching how insurers actually
+# review claims (quarterly or annually). Periods are already quarters, so
+# "quarterly" is every native period and "yearly" is every 4th (4 quarters =
+# 12 months). build_snapshot_triangle() takes granularity="quarterly"/"yearly"
+# directly; bad input raises KeyError.
+GRANULARITY_TO_STEP = {"quarterly": 1, "yearly": 4}
 
 
 def ceil_period(t):
@@ -48,15 +47,17 @@ def load_truth(df):
     return df.copy()
 
 
-def snapshot_grid(cutoff=CUTOFF, step=STEP):
-    """The shared grid every claim's snapshots (and observation ages) are drawn
-    from: step, 2*step, ... <= cutoff. One grid for the whole portfolio, not
-    per-claim offsets, so per-cluster aggregate triangles built later don't
-    have misaligned rows.
+def snapshot_grid(cutoff=CUTOFF, step=GRANULARITY_TO_STEP["quarterly"]):
+    """The shared list of periods every claim's snapshots (and observation
+    ages) are drawn from: step, 2*step, ... up to cutoff. Every claim uses
+    this same fixed set of periods -- no claim gets its own personal
+    schedule -- so that triangles built later by combining many claims
+    (e.g. per-cluster in Phase 5) line up correctly instead of each claim's
+    rows landing on different periods.
 
     Example:
-        >>> snapshot_grid(cutoff=40, step=3)
-        [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39]
+        >>> snapshot_grid(cutoff=40, step=4)
+        [4, 8, 12, 16, 20, 24, 28, 32, 36, 40]
 
         >>> snapshot_grid(cutoff=40, step=1)
         [1, 2, 3, 4, ..., 40]   # every single period
@@ -71,18 +72,20 @@ def snapshot_grid(cutoff=CUTOFF, step=STEP):
     return list(range(step, last + 1, step))
 
 
-def build_snapshot_triangle(df, cutoff=CUTOFF, step=STEP):
+def build_snapshot_triangle(df, cutoff=CUTOFF, granularity="quarterly"):
     """Core mechanism only -- claim_no, snapshot_period, observation_age,
     observation_period, row_status, future_paid, paid_to_date, is_settled_at_obs.
     No feature columns -- see feature_engineering.add_features() for that."""
+    step = GRANULARITY_TO_STEP[granularity]  
     visible = load_visible(df, cutoff)
     grid = snapshot_grid(cutoff, step)
 
-    # claim identity (occurrence, notidel, setldel) comes from the FULL data, not
-    # `visible` -- a claim notified before the cutoff but with zero payments yet
-    # (nothing due until after the cutoff) has zero rows in `visible` and would
-    # silently vanish otherwise, even though it's a valid "known, nothing paid
-    # yet" claim that belongs in the triangle
+    # Claim identity (occurrence, notidel, setldel) comes from the FULL data,
+    # not `visible`. Reason: a claim can be notified before the cutoff and
+    # still have nothing due yet -- zero payments, so zero rows in `visible`.
+    # If identity were built from `visible` alone, that claim would silently
+    # vanish, even though it's a real, already-known claim that belongs in
+    # the triangle.
     claims = df.drop_duplicates("claim_no").copy()
     claims["notification_period"] = (claims["occurrence_time"] + claims["notidel"]).apply(ceil_period)
     claims["settlement_period"] = (
@@ -90,16 +93,18 @@ def build_snapshot_triangle(df, cutoff=CUTOFF, step=STEP):
     ).apply(ceil_period)
 
     n_before = len(claims)
-    # notified AT the wall (not just after it) is also excluded: with nothing but the
-    # wall itself left, there's no room for even one observed row to show development.
-    # (The ~2 such claims that also happen to settle exactly at the wall would still
-    # get a single settled marker row otherwise -- not worth keeping for that alone,
-    # since a settled-only row has no future_paid target and isn't usable for training.)
+    # Claims notified exactly AT the last grid point (not just after it) are also
+    # excluded: with nothing left but that single point, there's no room for even
+    # one observed row to show development.
+    # (The few claims that also happen to settle exactly at that same point
+    # would still get a single settled marker row otherwise -- not worth keeping
+    # for that alone, since a settled-only row has no future_paid target and
+    # isn't usable for training.)
     claims = claims[claims["notification_period"] < grid[-1]]
     excluded = n_before - len(claims)
     print(f"portfolio: {n_before} claims")
     print(f"excluded (notified at or after the last grid point, {grid[-1]}): "
-          f"{excluded} ({excluded/n_before*100:.1f}%) -- no room left to show any development")
+        f"{excluded} ({excluded/n_before*100:.1f}%) -- no room left to show any development")
 
     rows = []
     for claim in claims.itertuples():
@@ -108,7 +113,7 @@ def build_snapshot_triangle(df, cutoff=CUTOFF, step=STEP):
         def cum_paid(p, _payments=payments):
             return _payments[_payments[:, 0] <= p][:, 1].sum()
 
-        entry = next((g for g in grid if g >= claim.notification_period), None)
+        entry = next((grid_point for grid_point in grid if grid_point >= claim.notification_period), None)
         if entry is None:
             continue
 
@@ -118,37 +123,37 @@ def build_snapshot_triangle(df, cutoff=CUTOFF, step=STEP):
         # which would wrongly flag every such immature claim as settled.
         exit_period = claim.settlement_period if claim.settlement_period <= cutoff else None
 
-        for s in grid:
-            if s < entry:
+        for snapshot in grid:
+            if snapshot < entry:
                 continue
 
-            paid_to_date = cum_paid(s)
+            paid_to_date = cum_paid(snapshot)
 
-            if exit_period is not None and s >= exit_period:
+            if exit_period is not None and snapshot >= exit_period:
                 rows.append(dict(
-                    claim_no=claim.claim_no, snapshot_period=s, observation_age=None,
+                    claim_no=claim.claim_no, snapshot_period=snapshot, observation_age=None,
                     observation_period=None, row_status="settled", future_paid=None,
                     paid_to_date=round(paid_to_date, 2),
                 ))
                 break  # one exit row, then stop -- no further snapshots for this claim
 
-            for g in grid:
-                if g <= s:
+            for observation_period in grid:
+                if observation_period <= snapshot:
                     continue
-                if g > cutoff:
+                if observation_period > cutoff:
                     break
-                k = g - s
-                future_paid = round(cum_paid(g) - paid_to_date, 2)
+                k = observation_period - snapshot
+                future_paid = round(cum_paid(observation_period) - paid_to_date, 2)
                 rows.append(dict(
-                    claim_no=claim.claim_no, snapshot_period=s, observation_age=k,
-                    observation_period=g, row_status="observed", future_paid=future_paid,
+                    claim_no=claim.claim_no, snapshot_period=snapshot, observation_age=k,
+                    observation_period=observation_period, row_status="observed", future_paid=future_paid,
                     paid_to_date=round(paid_to_date, 2),
-                    is_settled_at_obs=(g >= claim.settlement_period),
+                    is_settled_at_obs=(observation_period >= claim.settlement_period),
                 ))
 
     result = pd.DataFrame(rows)
     n_observed = (result["row_status"] == "observed").sum()
     n_settled = (result["row_status"] == "settled").sum()
     print(f"snapshot triangle: {len(result)} rows ({n_observed} observed, {n_settled} settled-exit), "
-          f"{result['claim_no'].nunique()} claims represented")
+        f"{result['claim_no'].nunique()} claims represented")
     return result
