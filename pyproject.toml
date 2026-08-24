@@ -1,0 +1,14 @@
+[project]
+name = "snapshot-triangle-reserving"
+version = "0.1.0"
+description = "ML-based individual-claim insurance reserving on synthetic data"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas",
+    "numpy",
+    "matplotlib",
+    "seaborn",
+    "scikit-learn",
+    "lightgbm",
+    "jupyter",
+]
