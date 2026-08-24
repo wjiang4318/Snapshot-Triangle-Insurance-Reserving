@@ -50,11 +50,12 @@ data/                               the generated dataset (already included)
 src/
   snapshot_builder.py                core mechanism: raw transactions -> snapshot triangle
   feature_engineering.py             adds modeling features on top of the triangle
+  model_trainer.py                   train/test split, chain-ladder baseline, scoring helpers
 notebooks/
   01_data_exploration.ipynb          EDA: distributions, timing, data quality checks
   02_snapshot_triangle_build.ipynb   builds and validates the snapshot-triangle mechanism
-  03_model_training_revised.ipynb    trains the prediction models, honest vs. ceiling test
-  04_clustering_revised.ipynb        clusters predicted trajectories, tests the payoff
+  03_model_training.ipynb            trains the prediction models, honest vs. ceiling test
+  04_clustering_model.ipynb          clusters predicted trajectories, tests the payoff
 ```
 
 Run the notebooks in that order: each one depends on data or reasoning
