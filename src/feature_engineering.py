@@ -3,15 +3,7 @@ Feature Engineering
 
 Adds the modeling features on top of a core snapshot triangle from
 snapshot_builder.build_snapshot_triangle(). Kept in its own module rather
-than folded into snapshot_builder.py -- that module is core mechanism only
-(see its own docstring), and feature engineering is Phase-3-specific, not
-part of the triangle's own definition.
-
-Promoted here from notebooks/03_model_training_revised.ipynb and
-notebooks/04_clustering_revised.ipynb once the logic was stable and
-identical in both -- the two notebooks had already drifted out of sync once
-(adding age_of_claimant required editing both by hand), which is exactly the
-duplication risk a shared module avoids going forward.
+than folded into snapshot_builder.py 
 """
 import numpy as np
 import pandas as pd
