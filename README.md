@@ -1,6 +1,6 @@
 # Snapshot Triangle Insurance Reserving
 
-When someone files an insurance claim, it often isn't paid off all at once. It can take months or years to fully resolve, so insurers set aside money along the way for what's still likely to be owed, called a reserve. The standard way to estimate that money treats every claim in a group the same, using one average growth pattern for everyone, known as the chain-ladder approach. This project tests whether machine learning can do better: predict how each individual claim is likely to develop, group similar-behaving claims together, and estimate reserves for each group separately, instead of lumping everyone into one number.
+When someone files an insurance claim, it often isn't paid off all at once. It can take months or years to fully resolve, so insurers set aside money along the way for what's still likely to be owed, called a **reserve**. The standard way to estimate that money treats every claim in a group the same, using one average growth pattern for everyone, known as the chain-ladder approach. This project tests whether machine learning can do better: predict how each individual claim is likely to develop, group similar-behaving claims together, and estimate reserves for each group separately, instead of lumping everyone into one number.
 
 The approach follows the snapshot-triangle framework from Llaguno et al.,
 *"Reserving with Machine Learning: Applications for Loyalty Programs and
