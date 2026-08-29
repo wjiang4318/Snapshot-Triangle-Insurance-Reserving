@@ -11,7 +11,7 @@ attempt to carry the same framework through on simulated insurance claims,
 end to end, and report honestly on what does and doesn't hold up.
 
 I wrote up the full story of building this, including what worked and what
-didn't, in a [Medium](https://medium.com/@wjiang4318/what-i-learned-building-and-stress-testing-an-ml-reserving-pipeline-3d35e20a33ef?postPublishedType=repub)
+didn't in a [Medium](https://medium.com/@wjiang4318/what-i-learned-building-and-stress-testing-an-ml-reserving-pipeline-3d35e20a33ef?postPublishedType=repub)
 article, if you'd like to follow along.
 
 ## Approach
